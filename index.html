@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Journal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117;
+            color: #c9d1d9;
+        }
+        .card {
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+        }
+        .form-input {
+            background-color: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #c9d1d9;
+            transition: all 0.2s ease-in-out;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #58a6ff;
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.2);
+        }
+        .btn {
+            border-radius: 6px;
+            font-weight: 600;
+            transition: all 0.2s ease-in-out;
+        }
+        .btn-primary {
+            background-color: #238636;
+            color: white;
+            border: 1px solid rgba(240, 246, 252, 0.1);
+        }
+        .btn-primary:hover {
+            background-color: #2ea043;
+        }
+        .btn-secondary {
+            background-color: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+        }
+        .btn-secondary:hover {
+            background-color: #30363d;
+        }
+        .btn-danger {
+            background-color: #da3633;
+            color: white;
+            border: 1px solid rgba(240, 246, 252, 0.1);
+        }
+        .btn-danger:hover {
+            background-color: #f85149;
+        }
+        .profit { color: #3fb950; }
+        .loss { color: #f85149; }
+
+        #drop-zone.drag-over {
+            border-color: #58a6ff;
+            background-color: rgba(88, 166, 255, 0.1);
+        }
+        ::-webkit-calendar-picker-indicator {
+            filter: invert(0.8);
+        }
+        .trade-details {
+            transition: all 0.3s ease-in-out;
+        }
+        /* Tab styling */
+        .tab-btn.active {
+            border-color: #58a6ff;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-white tracking-tight">Pro Trading Journal</h1>
+            <p class="text-gray-400 mt-2">Analyze. Refine. Succeed.</p>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Left Column -->
+            <div class="lg:col-span-1 space-y-8">
+                
+                <!-- Import Card -->
+                <div class="card p-6">
+                    <h2 class="text-xl font-semibold mb-4 text-white">Import Trades</h2>
+                    <div id="drop-zone" class="mt-4 border-2 border-dashed border-gray-600 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500 transition-colors">
+                        <p class="text-gray-400">Drag & drop .xlsx file</p>
+                        <p class="text-xs text-gray-500 mt-2">or click to select</p>
+                        <input type="file" id="file-input" class="hidden" accept=".xlsx, .xls, .csv">
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column -->
+            <div class="lg:col-span-2 space-y-8">
+
+                <!-- Performance Card -->
+                <div class="card p-6">
+                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+                        <h2 class="text-xl font-semibold text-white mb-2 sm:mb-0">Performance Overview</h2>
+                        <div class="flex items-center space-x-2 flex-wrap">
+                            <label for="start-date-picker" class="text-sm">Filter Range:</label>
+                            <input type="date" id="start-date-picker" class="form-input w-auto py-1 px-2 text-sm">
+                            <span class="text-gray-400">to</span>
+                            <input type="date" id="end-date-picker" class="form-input w-auto py-1 px-2 text-sm">
+                            <button id="clear-filter-btn" class="btn btn-secondary py-1 px-3 text-sm hidden">Clear</button>
+                        </div>
+                    </div>
+
+                    <!-- Overall Balance -->
+                    <div id="balance-display" class="text-center py-4 border-t border-b border-gray-700 mb-4">
+                        <!-- Balance will be populated by JS -->
+                    </div>
+
+                    <!-- Overall Stats -->
+                    <div id="overall-stats-section">
+                        <h3 class="text-lg font-semibold text-white">Overall Performance</h3>
+                        <div id="overall-stats-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+                            <!-- Overall stats go here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Filtered Stats (hidden by default) -->
+                    <div id="filtered-stats-section" class="hidden mt-6">
+                        <h3 id="filtered-stats-title" class="text-lg font-semibold text-white pt-4 border-t border-gray-700">Filtered Performance</h3>
+                        <div id="filtered-stats-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+                            <!-- Filtered stats go here -->
+                        </div>
+                    </div>
+
+                     <div class="flex flex-wrap justify-end items-center gap-x-4 gap-y-2 mt-4 pt-4 border-t border-gray-700">
+                        <div class="flex items-center space-x-2">
+                            <label for="fees-per-trade" class="text-sm font-medium text-gray-300">Fees per Trade ($):</label>
+                            <input type="number" id="fees-per-trade" step="0.01" name="fees-per-trade" class="form-input w-24 py-1 px-2 text-sm" placeholder="e.g., 0.50">
+                             <label for="fees-per-share" class="text-sm font-medium text-gray-300">and per Share (¢):</label>
+                            <input type="number" id="fees-per-share" step="0.001" name="fees-per-share" class="form-input w-24 py-1 px-2 text-sm" placeholder="e.g., 0.01">
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <label for="initial-balance" class="text-sm font-medium text-gray-300">Initial Balance:</label>
+                            <input type="number" id="initial-balance" step="0.01" name="initial-balance" class="form-input w-32 py-1 px-2 text-sm" placeholder="e.g., 1000.00">
+                            <button id="set-balance-btn" class="btn btn-primary py-1 px-3 text-sm">Set</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Combined Chart Card -->
+                <div class="card p-6">
+                    <div class="flex justify-between items-center border-b border-gray-700 mb-4">
+                        <div class="flex">
+                            <button id="equity-tab" class="tab-btn py-2 px-4 text-sm font-semibold border-b-2 active">Equity Curve</button>
+                            <button id="hourly-pl-tab" class="tab-btn py-2 px-4 text-sm font-semibold border-b-2 border-transparent text-gray-400 hover:text-white">P/L by Time Block</button>
+                            <button id="monthly-tab" class="tab-btn py-2 px-4 text-sm font-semibold border-b-2 border-transparent text-gray-400 hover:text-white">Monthly P&L</button>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <label for="ma-period" class="text-sm font-medium text-gray-300">MA Period:</label>
+                            <input type="number" id="ma-period" name="ma-period" class="form-input w-20 py-1 px-2 text-sm" value="10">
+                        </div>
+                    </div>
+                    <div id="chart-container">
+                        <div id="equity-chart-wrapper">
+                            <canvas id="equityCurveChart"></canvas>
+                        </div>
+                        <div id="hourly-pl-chart-wrapper" class="hidden">
+                            <canvas id="hourlyPLChart"></canvas>
+                        </div>
+                        <div id="monthly-chart-wrapper" class="hidden">
+                            <canvas id="monthlyPLChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History Card -->
+                <div class="card p-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold text-white mb-2 sm:mb-0">Trade History</h2>
+                        <div class="flex space-x-2">
+                             <button id="export-csv" class="btn btn-secondary text-sm py-1.5 px-3">Export CSV</button>
+                             <button id="clear-all" class="btn btn-danger text-sm py-1.5 px-3">Clear All</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="text-xs text-gray-400 uppercase bg-gray-900">
+                                <tr>
+                                    <th class="p-3">Ticker</th>
+                                    <th class="p-3">Date</th>
+                                    <th class="p-3">Type</th>
+                                    <th class="p-3 text-right">Size</th>
+                                    <th class="p-3 text-right">Entry</th>
+                                    <th class="p-3 text-right">Exit</th>
+                                    <th class="p-3 text-right">P/L ($)</th>
+                                    <th class="p-3 text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trade-list" class="divide-y divide-gray-700">
+                               <!-- JS will populate this -->
+                            </tbody>
+                        </table>
+                        <p id="no-trades-message" class="text-center text-gray-500 py-10">No trades logged yet.</p>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const tradeList = document.getElementById('trade-list');
+            const exportBtn = document.getElementById('export-csv');
+            const clearAllBtn = document.getElementById('clear-all');
+            const noTradesMessage = document.getElementById('no-trades-message');
+            const balanceDisplay = document.getElementById('balance-display');
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const initialBalanceInput = document.getElementById('initial-balance');
+            const setBalanceBtn = document.getElementById('set-balance-btn');
+            const feesPerTradeInput = document.getElementById('fees-per-trade');
+            const feesPerShareInput = document.getElementById('fees-per-share');
+            const startDatePicker = document.getElementById('start-date-picker');
+            const endDatePicker = document.getElementById('end-date-picker');
+            const clearFilterBtn = document.getElementById('clear-filter-btn');
+            const overallStatsGrid = document.getElementById('overall-stats-grid');
+            const filteredStatsSection = document.getElementById('filtered-stats-section');
+            const filteredStatsTitle = document.getElementById('filtered-stats-title');
+            const filteredStatsGrid = document.getElementById('filtered-stats-grid');
+            const maPeriodInput = document.getElementById('ma-period');
+            
+            // Chart Elements
+            const equityCurveCanvas = document.getElementById('equityCurveChart');
+            const hourlyPLCanvas = document.getElementById('hourlyPLChart');
+            const monthlyPLCanvas = document.getElementById('monthlyPLChart');
+            const equityChartWrapper = document.getElementById('equity-chart-wrapper');
+            const hourlyPLChartWrapper = document.getElementById('hourly-pl-chart-wrapper');
+            const monthlyChartWrapper = document.getElementById('monthly-chart-wrapper');
+            let equityChart, hourlyPLChart, monthlyPLChart;
+            const equityTab = document.getElementById('equity-tab');
+            const hourlyPLTab = document.getElementById('hourly-pl-tab');
+            const monthlyTab = document.getElementById('monthly-tab');
+
+            // State Variables
+            let allTransactions = JSON.parse(localStorage.getItem('allTransactions')) || [];
+            let trades = [];
+            let initialAccountBalance = parseFloat(localStorage.getItem('initialAccountBalance')) || 217.75;
+            let feesPerTrade = parseFloat(localStorage.getItem('feesPerTrade')) || 0.0;
+            let feesPerShare = parseFloat(localStorage.getItem('feesPerShare')) || 0.0;
+            let movingAveragePeriod = parseInt(localStorage.getItem('maPeriod')) || 10;
+
+            // Initialization
+            initialBalanceInput.value = initialAccountBalance.toFixed(2);
+            feesPerTradeInput.value = feesPerTrade.toFixed(2);
+            feesPerShareInput.value = feesPerShare.toFixed(3);
+            maPeriodInput.value = movingAveragePeriod;
+
+            const calculatePL = (trade) => {
+                const entry = parseFloat(trade.entry);
+                const exit = parseFloat(trade.exit);
+                const size = parseFloat(trade.size);
+                const grossPL = trade.type === 'buy' ? (exit - entry) * size : (entry - exit) * size;
+                const perShareFeeTotal = size * (feesPerShare / 100);
+                return grossPL - feesPerTrade - perShareFeeTotal;
+            };
+
+            const createStatCard = (label, value, valueClass = '') => `
+                <div class="card p-4 text-center">
+                    <p class="text-sm text-gray-400">${label}</p>
+                    <p class="text-xl font-bold ${valueClass}">${value}</p>
+                </div>`;
+
+            const formatDuration = (ms) => {
+                if (ms <= 0 || isNaN(ms)) return 'N/A';
+                const seconds = Math.floor((ms / 1000) % 60);
+                const minutes = Math.floor((ms / (1000 * 60)) % 60);
+                const hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
+                const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+                let result = '';
+                if (days > 0) result += `${days}d `;
+                if (hours > 0) result += `${hours}h `;
+                if (minutes > 0) result += `${minutes}m `;
+                if (seconds > 0) result += `${seconds}s`;
+                return result.trim() || '0s';
+            };
+            
+            const calculateMovingAverage = (data, period) => {
+                if (period <= 1 || data.length < period) return [];
+                const maData = [];
+                for (let i = period - 1; i < data.length; i++) {
+                    const slice = data.slice(i - period + 1, i + 1);
+                    const sum = slice.reduce((a, b) => a + b.y, 0);
+                    maData.push({ x: data[i].x, y: sum / period });
+                }
+                return maData;
+            };
+            
+            const calculateSimpleMovingAverage = (data, period) => {
+                if (period <= 1 || data.length < period) return [];
+                const maData = [];
+                for (let i = period - 1; i < data.length; i++) {
+                    const slice = data.slice(i - period + 1, i + 1);
+                    const sum = slice.reduce((a, b) => a + b, 0);
+                    maData.push(sum / period);
+                }
+                for (let i = 0; i < period - 1; i++) {
+                    maData.unshift(null);
+                }
+                return maData;
+            };
+
+            const generateStatsHTML = (dataSource) => {
+                if (dataSource.length === 0) return '<p class="text-gray-500 col-span-full text-center">No trade data for this period.</p>';
+                
+                let totalPL = 0;
+                const winningTradesPL = [], losingTradesPL = [];
+                let winningDurations = [], losingDurations = [], winningSizes = [], losingSizes = [];
+                let grossWinningPL = 0, grossLosingPL = 0;
+
+                dataSource.forEach(trade => {
+                    const pl = calculatePL(trade);
+                    totalPL += pl;
+                    const size = parseFloat(trade.size);
+                    const entry = parseFloat(trade.entry);
+                    const exit = parseFloat(trade.exit);
+                    const grossPL = trade.type === 'buy' ? (exit - entry) * size : (entry - exit) * size;
+
+                    if (pl > 0) {
+                        winningTradesPL.push(pl);
+                        winningSizes.push(size);
+                        grossWinningPL += grossPL;
+                        if (trade.entryTimestamp && trade.exitTimestamp) winningDurations.push(new Date(trade.exitTimestamp) - new Date(trade.entryTimestamp));
+                    } else if (pl < 0) {
+                        losingTradesPL.push(pl);
+                        losingSizes.push(size);
+                        grossLosingPL += grossPL;
+                        if (trade.entryTimestamp && trade.exitTimestamp) losingDurations.push(new Date(trade.exitTimestamp) - new Date(trade.entryTimestamp));
+                    }
+                });
+
+                const totalTrades = dataSource.length;
+                const winCount = winningTradesPL.length;
+                const lossCount = losingTradesPL.length;
+                const winRate = totalTrades > 0 ? (winCount / totalTrades) * 100 : 0;
+                const totalWinnings = winningTradesPL.reduce((s, p) => s + p, 0);
+                const totalLosses = losingTradesPL.reduce((s, p) => s + p, 0);
+                const avgWinner = winCount > 0 ? totalWinnings / winCount : 0;
+                const avgLoser = lossCount > 0 ? totalLosses / lossCount : 0;
+                const profitFactor = Math.abs(totalLosses) > 0 ? (totalWinnings / Math.abs(totalLosses)) : 0;
+                const avgWinningSize = winCount > 0 ? winningSizes.reduce((a, b) => a + b, 0) / winCount : 0;
+                const avgLosingSize = lossCount > 0 ? losingSizes.reduce((a, b) => a + b, 0) / lossCount : 0;
+                const avgWinningTime = winCount > 0 && winningDurations.length > 0 ? formatDuration(winningDurations.reduce((a, b) => a + b, 0) / winningDurations.length) : 'N/A';
+                const avgLosingTime = lossCount > 0 && losingDurations.length > 0 ? formatDuration(losingDurations.reduce((a, b) => a + b, 0) / losingDurations.length) : 'N/A';
+                const totalWinningShares = winningSizes.reduce((a, b) => a + b, 0);
+                const totalLosingShares = losingSizes.reduce((a, b) => a + b, 0);
+                const avgCentsGained = totalWinningShares > 0 ? (grossWinningPL / totalWinningShares) * 100 : 0;
+                const avgCentsLost = totalLosingShares > 0 ? (grossLosingPL / totalLosingShares) * 100 : 0;
+                
+                return createStatCard('Net P/L', `$${totalPL.toFixed(2)}`, totalPL >= 0 ? 'profit' : 'loss') +
+                    createStatCard('Win Rate', `${winRate.toFixed(1)}%`, 'text-white') +
+                    createStatCard('Profit Factor', profitFactor.toFixed(2), profitFactor >= 1 ? 'profit' : 'loss') +
+                    createStatCard('Total Trades', totalTrades, 'text-white') +
+                    createStatCard('Avg. Winner', `$${avgWinner.toFixed(2)}`, 'profit') +
+                    createStatCard('Avg. Loser', `$${avgLoser.toFixed(2)}`, 'loss') +
+                    createStatCard('Avg. Size (W)', `${avgWinningSize.toFixed(0)}`, 'profit') +
+                    createStatCard('Avg. Size (L)', `${avgLosingSize.toFixed(0)}`, 'loss') +
+                    createStatCard('Avg. Time (W)', avgWinningTime, 'profit') +
+                    createStatCard('Avg. Time (L)', avgLosingTime, 'loss') +
+                    createStatCard('Avg. Cents/Share (W)', `${avgCentsGained.toFixed(1)}¢`, 'profit') +
+                    createStatCard('Avg. Cents/Share (L)', `${avgCentsLost.toFixed(1)}¢`, 'loss');
+            };
+
+            const updateOverallStatsAndBalance = () => {
+                const overallPL = trades.reduce((acc, trade) => acc + calculatePL(trade), 0);
+                const currentBalance = initialAccountBalance + overallPL;
+                balanceDisplay.innerHTML = `<div><p class="text-sm text-gray-400 uppercase tracking-wider">Current Balance</p><p class="text-4xl font-bold text-white mt-1">$${currentBalance.toFixed(2)}</p></div>`;
+                overallStatsGrid.innerHTML = generateStatsHTML(trades);
+            };
+            
+            const renderTrades = (startDate = null, endDate = null) => {
+                const tradesToRender = (startDate && endDate) ? trades.filter(t => t.date >= startDate && t.date <= endDate) : trades;
+                tradeList.innerHTML = '';
+                if (tradesToRender.length === 0) {
+                    noTradesMessage.style.display = 'block';
+                    tradeList.parentElement.style.display = 'none';
+                } else {
+                    noTradesMessage.style.display = 'none';
+                    tradeList.parentElement.style.display = '';
+                    tradesToRender.forEach((trade, renderIndex) => {
+                        const pl = calculatePL(trade);
+                        const plClass = pl >= 0 ? 'profit' : 'loss';
+                        const typeClass = trade.type === 'buy' ? 'text-green-400' : 'text-red-400';
+                        const typeText = trade.type === 'buy' ? 'Long' : 'Short';
+                        const duration = formatDuration(new Date(trade.exitTimestamp) - new Date(trade.entryTimestamp));
+                        const entry = parseFloat(trade.entry);
+                        const exit = parseFloat(trade.exit);
+                        const size = parseFloat(trade.size);
+                        const grossPL = (trade.type === 'buy' ? (exit - entry) * size : (entry - exit) * size);
+                        const centsPerShare = (grossPL / size) * 100;
+                        const centsClass = centsPerShare >= 0 ? 'profit' : 'loss';
+                        const rowHTML = `<tr class="trade-row cursor-pointer hover:bg-gray-800 transition-colors duration-200" data-render-index="${renderIndex}"><td class="p-3 font-semibold text-white">${trade.ticker.toUpperCase()}</td><td class="p-3 text-sm">${trade.date}</td><td class="p-3 text-sm font-medium ${typeClass}">${typeText}</td><td class="p-3 text-sm text-right">${trade.size}</td><td class="p-3 text-sm text-right">${entry.toFixed(2)}</td><td class="p-3 text-sm text-right">${exit.toFixed(2)}</td><td class="p-3 text-sm font-semibold text-right ${plClass}">${pl.toFixed(2)}</td><td class="p-3 text-sm text-center"><button class="delete-btn text-gray-500 hover:text-red-500" data-trade-id="${trade.id}">🗑️</button></td></tr>`;
+                        const detailsHTML = `<tr class="trade-details hidden" data-details-for="${renderIndex}"><td colspan="8" class="p-4 bg-gray-900"><div class="flex justify-around text-center text-sm"><div><p class="text-gray-400 text-xs uppercase tracking-wider">Duration</p><p class="font-semibold text-white mt-1">${duration}</p></div><div><p class="text-gray-400 text-xs uppercase tracking-wider">Cents/Share</p><p class="font-semibold ${centsClass} mt-1">${centsPerShare.toFixed(1)}¢</p></div><div><p class="text-gray-400 text-xs uppercase tracking-wider">Net P/L</p><p class="font-semibold ${plClass} mt-1">$${pl.toFixed(2)}</p></div></div></td></tr>`;
+                        tradeList.insertAdjacentHTML('beforeend', rowHTML + detailsHTML);
+                    });
+                }
+            };
+            
+            const renderChart = (canvas, chartInstance, config) => {
+                if (chartInstance) chartInstance.destroy();
+                return new Chart(canvas.getContext('2d'), config);
+            };
+
+            const renderAllCharts = (dataSource) => {
+                // Shared data calculation
+                const sortedByTime = [...dataSource].sort((a, b) => new Date(a.exitTimestamp) - new Date(b.exitTimestamp));
+                
+                // Equity Curve
+                if (sortedByTime.length > 0) {
+                    let cumulativePL = 0;
+                    const equityData = sortedByTime.map(trade => ({ x: new Date(trade.exitTimestamp).valueOf(), y: cumulativePL += calculatePL(trade) }));
+                    const firstDate = new Date(sortedByTime[0].exitTimestamp);
+                    equityData.unshift({x: firstDate.setDate(firstDate.getDate() - 1), y: 0});
+                    const equityMA = calculateMovingAverage(equityData, movingAveragePeriod);
+                    equityChart = renderChart(equityCurveCanvas, equityChart, { type: 'line', data: { datasets: [{ label: 'P/L', data: equityData, borderColor: '#3fb950', fill: false, tension: 0.3, pointRadius: 2 }, { label: `MA(${movingAveragePeriod})`, data: equityMA, borderColor: '#58a6ff', fill: false, pointRadius: 0, borderDash: [5, 5], tension: 0.3 }] }, options: { responsive: true, scales: { x: { type: 'time', time: { unit: 'day' }, grid: { color: 'rgba(48, 54, 61, 0.5)' }, ticks: { color: '#c9d1d9' } }, y: { ticks: { callback: (v) => '$' + v, color: '#c9d1d9' }, grid: { color: 'rgba(48, 54, 61, 0.5)' } } }, plugins: { legend: { display: true, labels: { color: '#c9d1d9' } } } } });
+                }
+
+                // P/L by Time Block Chart
+                const timeBlocks = {};
+                const blockLabels = [];
+                for (let h = 5; h < 11; h++) {
+                    const block1Key = `${h}:00`;
+                    const block2Key = `${h}:30`;
+                    timeBlocks[block1Key] = 0;
+                    timeBlocks[block2Key] = 0;
+                    blockLabels.push(block1Key);
+                    blockLabels.push(block2Key);
+                }
+
+                dataSource.forEach(trade => {
+                    const exitTime = new Date(trade.exitTimestamp);
+                    const hour = exitTime.getHours();
+                    const minute = exitTime.getMinutes();
+                    if (hour >= 5 && hour < 11) {
+                        const blockKey = `${hour}:${minute < 30 ? '00' : '30'}`;
+                        if (blockKey in timeBlocks) {
+                            timeBlocks[blockKey] += calculatePL(trade);
+                        }
+                    }
+                });
+                const timeBlockPLData = blockLabels.map(label => timeBlocks[label]);
+                hourlyPLChart = renderChart(hourlyPLCanvas, hourlyPLChart, { 
+                    type: 'bar', 
+                    data: { 
+                        labels: blockLabels, 
+                        datasets: [{ 
+                            label: 'Total P/L', 
+                            data: timeBlockPLData, 
+                            backgroundColor: timeBlockPLData.map(pl => pl >= 0 ? 'rgba(63, 185, 80, 0.6)' : 'rgba(248, 81, 73, 0.6)'), 
+                            borderColor: timeBlockPLData.map(pl => pl >= 0 ? '#3fb950' : '#f85149'), 
+                            borderWidth: 1 
+                        }] 
+                    }, 
+                    options: { 
+                        responsive: true, 
+                        scales: { 
+                            x: { title: { display: true, text: 'Time Block (Trade Exit)', color: '#c9d1d9' }, grid: { display: false }, ticks: { color: '#c9d1d9' } }, 
+                            y: { beginAtZero: true, title: { display: true, text: 'Total P/L ($)', color: '#c9d1d9' }, grid: { color: 'rgba(48, 54, 61, 0.5)' }, ticks: { color: '#c9d1d9', callback: (v) => '$' + v } } 
+                        }, 
+                        plugins: { legend: { display: false } } 
+                    } 
+                });
+
+
+                // Monthly P/L
+                const monthlyData = {};
+                dataSource.forEach(t => { const k = new Date(t.exitTimestamp).toISOString().slice(0, 7); monthlyData[k] = (monthlyData[k] || 0) + calculatePL(t); });
+                const sortedMonths = Object.keys(monthlyData).sort();
+                const labels = sortedMonths.map(k => new Date(k + '-02').toLocaleString('default', { month: 'short', year: '2-digit' }));
+                const data = sortedMonths.map(k => monthlyData[k]);
+                const monthlyMA = calculateSimpleMovingAverage(data, movingAveragePeriod);
+                monthlyPLChart = renderChart(monthlyPLCanvas, monthlyPLChart, { type: 'bar', data: { labels, datasets: [{ label: 'P/L', data, backgroundColor: data.map(pl => pl >= 0 ? 'rgba(63, 185, 80, 0.6)' : 'rgba(248, 81, 73, 0.6)'), borderColor: data.map(pl => pl >= 0 ? '#3fb950' : '#f85149') }, { label: `MA(${movingAveragePeriod})`, data: monthlyMA, type: 'line', borderColor: '#58a6ff', fill: false, pointRadius: 0 }] }, options: { responsive: true, scales: { x: { grid: { display: false }, ticks: { color: '#c9d1d9' } }, y: { beginAtZero: true, grid: { color: 'rgba(48, 54, 61, 0.5)' }, ticks: { color: '#c9d1d9', callback: (v) => '$' + v } } }, plugins: { legend: { display: true, labels: { color: '#c9d1d9' } } } } });
+            };
+            
+            const clearAllTrades = () => {
+                trades = [];
+                allTransactions = [];
+                localStorage.removeItem('allTransactions');
+                recalculateAllTrades();
+            };
+
+            const setInitialBalance = () => {
+                const newBalance = parseFloat(initialBalanceInput.value);
+                if (!isNaN(newBalance) && newBalance >= 0) {
+                    initialAccountBalance = newBalance;
+                    localStorage.setItem('initialAccountBalance', newBalance.toString());
+                    updateOverallStatsAndBalance();
+                }
+            };
+            
+            const recalculateAllTrades = () => {
+                const openPositions = {}; 
+                const newTrades = [];
+                const sortedData = [...allTransactions].sort((a, b) => a.filledTimestamp - b.filledTimestamp);
+
+                sortedData.forEach(row => {
+                    const symbol = row.Symbol;
+                    const side = row.Side.toLowerCase();
+                    let qtyToMatch = row.qty;
+                    const price = row.price;
+                    const filledTimestamp = row.filledTimestamp;
+                    if (!openPositions[symbol]) openPositions[symbol] = { buys: [], sells: [] };
+
+                    if (side.includes('buy')) {
+                        const openSells = openPositions[symbol].sells;
+                        while (qtyToMatch > 0 && openSells.length > 0) {
+                            const shortPos = openSells[0];
+                            const matchQty = Math.min(qtyToMatch, shortPos.qty);
+                            newTrades.push({ id: `${shortPos.id}-${row.id}`, ticker: symbol, type: 'sell', date: filledTimestamp.toISOString().split('T')[0], entry: shortPos.price, exit: price, size: matchQty, entryTimestamp: shortPos.timestamp, exitTimestamp: filledTimestamp });
+                            qtyToMatch -= matchQty;
+                            shortPos.qty -= matchQty;
+                            if (shortPos.qty < 1e-5) openSells.shift();
+                        }
+                        if (qtyToMatch > 1e-5) openPositions[symbol].buys.push({ id: row.id, price: price, qty: qtyToMatch, timestamp: filledTimestamp });
+                    } else if (side.includes('sell')) {
+                        const openBuys = openPositions[symbol].buys;
+                        while (qtyToMatch > 0 && openBuys.length > 0) {
+                            const longPos = openBuys[0];
+                            const matchQty = Math.min(qtyToMatch, longPos.qty);
+                            newTrades.push({ id: `${longPos.id}-${row.id}`, ticker: symbol, type: 'buy', date: filledTimestamp.toISOString().split('T')[0], entry: longPos.price, exit: price, size: matchQty, entryTimestamp: longPos.timestamp, exitTimestamp: filledTimestamp });
+                            qtyToMatch -= matchQty;
+                            longPos.qty -= matchQty;
+                            if (longPos.qty < 1e-5) openBuys.shift();
+                        }
+                        if (qtyToMatch > 1e-5) openPositions[symbol].sells.push({ id: row.id, price: price, qty: qtyToMatch, timestamp: filledTimestamp });
+                    }
+                });
+                
+                trades = newTrades.sort((a, b) => new Date(b.exitTimestamp) - new Date(a.exitTimestamp));
+                updateUI();
+            };
+            
+            const parseDate = (dateValue) => {
+                if (!dateValue) return null;
+                if (typeof dateValue === 'number') return new Date(Date.UTC(1899, 11, 30) + dateValue * 86400000);
+                const d = new Date(dateValue);
+                return isNaN(d.getTime()) ? null : d;
+            };
+
+            const sanitizeNumber = (numValue) => {
+                if (typeof numValue === 'number') return numValue;
+                if (typeof numValue === 'string') return parseFloat(numValue.replace(/[^0-9.-]+/g, ""));
+                return NaN;
+            };
+            
+            const handleFile = (file) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+                        const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {raw: false});
+
+                        const existingIds = new Set(allTransactions.map(t => t.id));
+                        let newTransactionsFound = 0, invalidRows = 0;
+
+                        json.forEach(row => {
+                            if(row['Status'] && String(row['Status']).toLowerCase() === 'filled' && row['Side']) {
+                                const filledTime = parseDate(row['Filled Time'] || row['Execution Time'] || row['Time Filled'] || row['Time'] || row['Placed Time']);
+                                const price = sanitizeNumber(row['Avg Price'] || row['Price']);
+                                const qty = sanitizeNumber(row['Filled'] || row['Total Qty']);
+                                
+                                if (!filledTime || isNaN(price) || isNaN(qty) || !row['Symbol']) {
+                                    invalidRows++; return;
+                                }
+                                const transaction = { id: `${filledTime.toISOString()}-${row['Symbol']}-${row['Side']}-${qty}-${price}`, Symbol: row['Symbol'], Side: row['Side'], qty, price, filledTimestamp: filledTime };
+                                if (!existingIds.has(transaction.id)) {
+                                    allTransactions.push(transaction);
+                                    existingIds.add(transaction.id);
+                                    newTransactionsFound++;
+                                }
+                            }
+                        });
+
+                        if (newTransactionsFound > 0) {
+                            localStorage.setItem('allTransactions', JSON.stringify(allTransactions));
+                            recalculateAllTrades();
+                            alert(`${newTransactionsFound} new transaction(s) imported. ${invalidRows > 0 ? `(${invalidRows} rows skipped).` : ''}`);
+                        } else alert("No new, unique transactions found.");
+                    } catch (error) { console.error("File processing error:", error); alert("Failed to process file."); }
+                };
+                reader.readAsArrayBuffer(file);
+            };
+
+            const handleDateFilter = () => {
+                const startDate = startDatePicker.value;
+                const endDate = endDatePicker.value;
+
+                if (startDate && endDate && startDate <= endDate) {
+                    const filteredTrades = trades.filter(t => t.date >= startDate && t.date <= endDate);
+                    filteredStatsTitle.textContent = `Performance for ${startDate} to ${endDate}`;
+                    filteredStatsGrid.innerHTML = generateStatsHTML(filteredTrades);
+                    filteredStatsSection.classList.remove('hidden');
+                    renderTrades(startDate, endDate);
+                    renderAllCharts(filteredTrades);
+                    clearFilterBtn.classList.remove('hidden');
+                } else {
+                    filteredStatsSection.classList.add('hidden');
+                    renderTrades();
+                    renderAllCharts(trades);
+                    clearFilterBtn.classList.add('hidden');
+                }
+            };
+
+            const updateUI = () => {
+                updateOverallStatsAndBalance();
+                handleDateFilter(); 
+            };
+
+            // Event Listeners
+            exportBtn.addEventListener('click', () => { if(trades.length === 0) { alert('No trades to export!'); return; } const headers = ['Ticker', 'Date', 'Type', 'Entry Price', 'Exit Price', 'Position Size', 'Net P/L ($)', 'Notes']; const rows = trades.map(t => { const pl = calculatePL(t); return [t.ticker.toUpperCase(), t.date, t.type, t.entry, t.exit, t.size, pl.toFixed(2), `"${(t.notes || '').replace(/"/g, '""')}"`].join(','); }); const csv = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows].join('\n'); const link = document.createElement("a"); link.setAttribute("href", encodeURI(csv)); link.setAttribute("download", "trading_journal.csv"); link.click(); });
+            clearAllBtn.addEventListener('click', clearAllTrades);
+            setBalanceBtn.addEventListener('click', setInitialBalance);
+            startDatePicker.addEventListener('change', handleDateFilter);
+            endDatePicker.addEventListener('change', handleDateFilter);
+            
+            const handleFeeChange = () => {
+                const newFeesPerTrade = parseFloat(feesPerTradeInput.value);
+                const newFeesPerShare = parseFloat(feesPerShareInput.value);
+                if (!isNaN(newFeesPerTrade) && newFeesPerTrade >= 0) { feesPerTrade = newFeesPerTrade; localStorage.setItem('feesPerTrade', newFeesPerTrade.toString()); }
+                if (!isNaN(newFeesPerShare) && newFeesPerShare >= 0) { feesPerShare = newFeesPerShare; localStorage.setItem('feesPerShare', newFeesPerShare.toString()); }
+                recalculateAllTrades();
+            };
+            feesPerTradeInput.addEventListener('change', handleFeeChange);
+            feesPerShareInput.addEventListener('change', handleFeeChange);
+            
+            maPeriodInput.addEventListener('change', () => {
+                const newPeriod = parseInt(maPeriodInput.value);
+                if (newPeriod > 0) {
+                    movingAveragePeriod = newPeriod;
+                    localStorage.setItem('maPeriod', newPeriod.toString());
+                    handleDateFilter();
+                }
+            });
+
+            clearFilterBtn.addEventListener('click', () => { startDatePicker.value = ''; endDatePicker.value = ''; handleDateFilter(); });
+            
+            tradeList.addEventListener('click', (e) => {
+                if (e.target.closest('.delete-btn')) { alert("Deleting individual trades has been disabled. Use 'Clear All' and re-import a corrected file."); return; }
+                const row = e.target.closest('.trade-row');
+                if (row) { const detailsRow = row.nextElementSibling; if (detailsRow?.classList.contains('trade-details')) detailsRow.classList.toggle('hidden'); }
+            });
+
+            const tabs = [equityTab, hourlyPLTab, monthlyTab];
+            const chartWrappers = [equityChartWrapper, hourlyPLChartWrapper, monthlyChartWrapper];
+            tabs.forEach((tab, index) => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    chartWrappers.forEach(c => c.classList.add('hidden'));
+                    tab.classList.add('active');
+                    chartWrappers[index].classList.remove('hidden');
+                });
+            });
+
+            dropZone.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => e.target.files.length && handleFile(e.target.files[0]));
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+            dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
+
+            recalculateAllTrades();
+        });
+    </script>
+</body>
+</html>
+
